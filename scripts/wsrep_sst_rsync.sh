@@ -1,7 +1,7 @@
 #!/bin/bash -ue
 
-# Copyright (C) 2017-2021 MariaDB
-# Copyright (C) 2010-2014 Codership Oy
+# Copyright (C) 2017-2022 MariaDB
+# Copyright (C) 2010-2022 Codership Oy
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -347,13 +347,15 @@ EOF
                 rm -f "$ERROR"
                 exit 255
             fi
-            sleep 0.2
+            sleep 0.5
         done
 
         STATE=$(cat "$FLUSHED")
         rm -f "$FLUSHED"
 
         sync
+
+        wsrep_log_info "Tables flushed"
 
         if [ -n "$WSREP_SST_OPT_BINLOG" -a -d "${BINLOG_DIRNAME:-}" ]
         then
@@ -428,6 +430,8 @@ FILTER="-f '- /lost+found'
             exit $RC
         fi
 
+        wsrep_log_info "Transfer of normal directories done"
+
         # Transfer InnoDB data files
         rsync ${STUNNEL:+--rsh="$STUNNEL"} \
               --owner --group --perms --links --specials \
@@ -441,6 +445,8 @@ FILTER="-f '- /lost+found'
             exit 255 # unknown error
         fi
 
+        wsrep_log_info "Transfer of InnoDB data files done"
+
         # second, we transfer InnoDB and Aria log files
         rsync ${STUNNEL:+--rsh="$STUNNEL"} \
               --owner --group --perms --links --specials \
@@ -453,6 +459,8 @@ FILTER="-f '- /lost+found'
             wsrep_log_error "rsync innodb_log_group_home_dir returned code $RC:"
             exit 255 # unknown error
         fi
+
+        wsrep_log_info "Transfer of InnoDB and Aria log files done"
 
         # then, we parallelize the transfer of database directories,
         # use '.' so that path concatenation works:
@@ -481,6 +489,9 @@ FILTER="-f '- /lost+found'
             exit 255 # unknown error
         fi
 
+        wsrep_log_info "Transfer of data done"
+
+
     else # BYPASS
 
         wsrep_log_info "Bypassing state dump."
@@ -491,6 +502,7 @@ FILTER="-f '- /lost+found'
 
     fi
 
+    wsrep_log_info "Sending continue to donor"
     echo 'continue' # now server can resume updating data
 
     echo "$STATE" > "$MAGIC_FILE"

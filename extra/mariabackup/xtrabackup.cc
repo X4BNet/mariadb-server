@@ -4,7 +4,7 @@ MariaBackup: hot backup tool for InnoDB
 Originally Created 3/3/2009 Yasufumi Kinoshita
 Written by Alexey Kopytov, Aleksandr Kuzminsky, Stewart Smith, Vadim Tkachenko,
 Yasufumi Kinoshita, Ignacio Nin and Baron Schwartz.
-(c) 2017, 2021, MariaDB Corporation.
+(c) 2017, 2022, MariaDB Corporation.
 Portions written by Marko Mäkelä.
 
 This program is free software; you can redistribute it and/or modify
@@ -4465,11 +4465,6 @@ fail:
 	trx_pool_init();
 	recv_sys.create();
 
-#ifdef WITH_INNODB_DISALLOW_WRITES
-	srv_allow_writes_event = os_event_create(0);
-	os_event_set(srv_allow_writes_event);
-#endif
-
 	xb_filters_init();
 
 	xb_fil_io_init();
@@ -5917,10 +5912,6 @@ static bool xtrabackup_prepare_func(char** argv)
 		log_sys.create();
 		recv_sys.recovery_on = true;
 
-#ifdef WITH_INNODB_DISALLOW_WRITES
-		srv_allow_writes_event = os_event_create(0);
-		os_event_set(srv_allow_writes_event);
-#endif
 		xb_fil_io_init();
 		if (dberr_t err = xb_load_tablespaces()) {
 			msg("mariabackup: error: xb_data_files_init() failed "
@@ -5943,9 +5934,7 @@ static bool xtrabackup_prepare_func(char** argv)
 		xb_filter_hash_free(&inc_dir_tables_hash);
 
 		fil_system.close();
-#ifdef WITH_INNODB_DISALLOW_WRITES
-		os_event_destroy(srv_allow_writes_event);
-#endif
+
 		innodb_free_param();
 		log_sys.close();
 		sync_check_close();
