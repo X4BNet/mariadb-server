@@ -7827,7 +7827,6 @@ ha_rows ha_spider::records()
   DBUG_RETURN(table_rows);
 }
 
-#ifdef HA_HAS_CHECKSUM_EXTENDED
 int ha_spider::pre_calculate_checksum()
 {
   int error_num;
@@ -7905,7 +7904,6 @@ int ha_spider::calculate_checksum()
   }
   DBUG_RETURN(0);
 }
-#endif
 
 const char *ha_spider::table_type() const
 {
