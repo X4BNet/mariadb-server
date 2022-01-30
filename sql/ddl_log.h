@@ -248,7 +248,7 @@ typedef struct st_ddl_log_state
   */
   DDL_LOG_MEMORY_ENTRY *main_entry;
   uint16 flags;                                 /* Cache for flags */
-  ulonglong master_chain_pos;
+  uint master_chain_pos;
   bool is_active() { return list != 0; }
 } DDL_LOG_STATE;
 

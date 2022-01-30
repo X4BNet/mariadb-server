@@ -26,6 +26,7 @@
 
 class Alter_info;
 class Alter_table_ctx;
+struct Atomic_info;
 class Column_definition;
 class Create_field;
 struct TABLE_LIST;

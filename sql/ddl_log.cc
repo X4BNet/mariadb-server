@@ -2296,7 +2296,6 @@ end:
     if (error && file)
     {
       TABLE_SHARE share;
-      bzero(&share, sizeof(share));
       share.db=               ddl_log_entry->db;
       share.table_name=       ddl_log_entry->name;
       share.normalized_path=  ddl_log_entry->tmp_name;
