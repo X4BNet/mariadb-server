@@ -472,6 +472,46 @@ row_merge_buf_redundant_convert(
 	dfield_set_data(field, buf, len);
 }
 
+static void handle_alter_charset(TABLE *my_table, const dict_index_t *index,
+                                 const dict_field_t *ifield, dfield_t *field)
+{
+  if (ifield->col->mtype != DATA_VARMYSQL)
+    return;
+
+  KEY *begin= my_table->key_info;
+  KEY *end= begin + my_table->s->keys;
+
+  KEY *key= std::find_if(begin, end, [index](const KEY &key) {
+    return !strcmp(static_cast<const char *>(index->name), key.name.str);
+  });
+
+  if (key == end)
+    return;
+
+  const char *col_name= ifield->name;
+
+  Field *fld= nullptr;
+  for (size_t j= 0; j < key->user_defined_key_parts; j++)
+  {
+    if (!strcmp(key->key_part[j].field->field_name.str, col_name))
+    {
+      fld= key->key_part[j].field;
+      break;
+    }
+  }
+
+  if (!fld)
+    return;
+
+  ut_ad(fld->type() == MYSQL_TYPE_VARCHAR);
+
+  auto *varstring= static_cast<Field_varstring *>(fld);
+  uint cs_number= varstring->charset()->number;
+
+  field->type.prtype&= ~((uint) CHAR_COLL_MASK << 16);
+  field->type.prtype|= cs_number << 16;
+}
+
 /** Insert a data tuple into a sort buffer.
 @param[in,out]	buf		sort buffer
 @param[in]	fts_index	fts index to be created
@@ -709,6 +749,8 @@ error:
 					ut_ad(index->table->not_redundant());
 				}
 			}
+
+			handle_alter_charset(my_table, index, ifield, field);
 		}
 
 		len = dfield_get_len(field);

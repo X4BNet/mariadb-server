@@ -3563,7 +3563,7 @@ row_log_apply_op(
 					in exclusive mode */
 	const mrec_t*	mrec,		/*!< in: merge record */
 	const mrec_t*	mrec_end,	/*!< in: end of buffer */
-	rec_offs*	offsets)	/*!< in/out: work area for
+	rec_offs*	offsets, const TABLE *mariadb_table)	/*!< in/out: work area for
 					rec_init_offsets_temp() */
 
 {
@@ -3652,6 +3652,26 @@ corrupted:
 	indexes, which never contain off-page columns. */
 	ut_ad(dtuple_get_n_ext(entry) == 0);
 
+	for (unsigned i = 0; i < index->n_fields; i++) {
+	  if (index->fields[i].col->mtype != DATA_VARMYSQL) {
+	    continue;
+	  }
+
+	  auto *field_name = static_cast<const char*>(index->fields[i].name);
+
+	  for (uint j = 0; j < mariadb_table->s->fields; j++) {
+	    if (!strcmp(field_name, mariadb_table->field[j]->field_name.str)) {
+	      ut_ad(mariadb_table->field[j]->type() == MYSQL_TYPE_VARCHAR);
+	      auto *field = static_cast<Field_varstring*>(mariadb_table->field[j]);
+	      uint cs_number= field->charset()->number;
+	      entry->fields[i].type.prtype &= ~((uint) CHAR_COLL_MASK << 16);
+	      entry->fields[i].type.prtype |= cs_number << 16;
+	      break;
+	    }
+
+	  }
+	}
+
 	row_log_apply_op_low(index, dup, error, offsets_heap,
 			     has_index_lock, op, trx_id, entry);
 	return(mrec);
@@ -3672,7 +3692,7 @@ row_log_apply_ops(
 	const trx_t*		trx,
 	dict_index_t*		index,
 	row_merge_dup_t*	dup,
-	ut_stage_alter_t*	stage)
+	ut_stage_alter_t*	stage, const TABLE *mariadb_table)
 {
 	dberr_t		error;
 	const mrec_t*	mrec	= NULL;
@@ -3829,7 +3849,7 @@ all_done:
 		mrec = row_log_apply_op(
 			index, dup, &error, offsets_heap, heap,
 			has_index_lock, index->online_log->head.buf,
-			(&index->online_log->head.buf)[1], offsets);
+			(&index->online_log->head.buf)[1], offsets, mariadb_table);
 		if (error != DB_SUCCESS) {
 			goto func_exit;
 		} else if (UNIV_UNLIKELY(mrec == NULL)) {
@@ -3916,7 +3936,7 @@ all_done:
 
 		next_mrec = row_log_apply_op(
 			index, dup, &error, offsets_heap, heap,
-			has_index_lock, mrec, mrec_end, offsets);
+			has_index_lock, mrec, mrec_end, offsets, mariadb_table);
 
 		if (error != DB_SUCCESS) {
 			goto func_exit;
@@ -4021,7 +4041,7 @@ row_log_apply(
 	rw_lock_x_lock(dict_index_get_lock(index));
 
 	if (!dict_table_is_corrupted(index->table)) {
-		error = row_log_apply_ops(trx, index, &dup, stage);
+		error = row_log_apply_ops(trx, index, &dup, stage, table);
 	} else {
 		error = DB_SUCCESS;
 	}
