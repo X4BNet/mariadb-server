@@ -1589,7 +1589,8 @@ bool JOIN::prepare_stage2()
 #endif
   if (select_lex->olap == ROLLUP_TYPE && rollup_init())
     goto err;
-  if (alloc_func_list())
+  if (alloc_func_list() ||
+      make_sum_func_list(all_fields, fields_list, false, true))
     goto err;
 
   res= FALSE;
@@ -2204,7 +2205,21 @@ JOIN::optimize_inner()
       If all items were resolved by opt_sum_query, there is no need to
       open any tables.
     */
-    if ((res=opt_sum_query(thd, select_lex->leaf_tables, all_fields, conds)))
+
+    /*
+      The following resetting and restoring of sum_funcs is needed to
+      go around a bug in spider where it assumes that
+      make_sum_func_list() has not been called yet and do logical
+      choices based on this if special handling of min/max functions should
+      be done. We disable this special handling while we are trying to find
+      out if we can replace MIN/MAX values with constants.
+    */
+    Item_sum **save_func_sums= sum_funcs, *tmp_sum_funcs= 0;
+    sum_funcs= &tmp_sum_funcs;
+    res= opt_sum_query(thd, select_lex->leaf_tables, all_fields, conds);
+    sum_funcs= save_func_sums;
+
+    if (res)
     {
       DBUG_ASSERT(res >= 0);
       if (res == HA_ERR_KEY_NOT_FOUND)
@@ -3834,7 +3849,7 @@ JOIN::create_postjoin_aggr_table(JOIN_TAB *tab, List<Item> *table_fields,
 
     if (alloc_group_fields(this, group_list))
       goto err;
-    if (make_sum_func_list(all_fields, fields_list, true))
+    if (make_sum_func_list(all_fields, fields_list, true, true))
       goto err;
     if (prepare_sum_aggregators(sum_funcs,
                                 !(tables_list && 
@@ -3846,8 +3861,6 @@ JOIN::create_postjoin_aggr_table(JOIN_TAB *tab, List<Item> *table_fields,
   }
   else
   {
-    if (make_sum_func_list(all_fields, fields_list, false))
-      goto err;
     if (prepare_sum_aggregators(sum_funcs,
                                 !join_tab->is_using_agg_loose_index_scan()))
       goto err;
@@ -25700,7 +25713,10 @@ bool JOIN::make_sum_func_list(List<Item> &field_list,
   DBUG_ENTER("make_sum_func_list");
 
   if (*sum_funcs && !recompute)
-    DBUG_RETURN(FALSE); /* We have already initialized sum_funcs. */
+  {
+    /* We have already initialized sum_funcs. */
+    DBUG_RETURN(0);
+  }
 
   func= sum_funcs;
   while ((item=it++))
