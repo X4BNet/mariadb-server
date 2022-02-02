@@ -401,18 +401,26 @@ void mtr_t::commit()
 
     std::pair<lsn_t,page_flush_ahead> lsns;
 
-    if (const auto len= prepare_write())
-      lsns= finish_write(len);
+    if (UNIV_LIKELY(m_log_mode == MTR_LOG_ALL)) {
+      lsns= finish_write(prepare_write());
+
+      if (m_made_dirty)
+        mysql_mutex_lock(&log_sys.flush_order_mutex);
+
+      /* It is now safe to release log_sys.mutex because the
+      buf_pool.flush_order_mutex will ensure that we are the first one
+      to insert into buf_pool.flush_list. */
+      mysql_mutex_unlock(&log_sys.mutex);
+    }
     else
+    {
+      ut_ad(m_log_mode == MTR_LOG_NO_REDO);
+      ut_ad(m_log.size() == 0);
+      m_commit_lsn= log_sys.get_lsn();
       lsns= { m_commit_lsn, PAGE_FLUSH_NO };
-
-    if (m_made_dirty)
-      mysql_mutex_lock(&log_sys.flush_order_mutex);
-
-    /* It is now safe to release log_sys.mutex because the
-    buf_pool.flush_order_mutex will ensure that we are the first one
-    to insert into buf_pool.flush_list. */
-    mysql_mutex_unlock(&log_sys.mutex);
+      if (UNIV_UNLIKELY(m_made_dirty)) /* This should be IMPORT TABLESPACE */
+        mysql_mutex_lock(&log_sys.flush_order_mutex);
+    }
 
     if (m_freed_pages)
     {
@@ -853,14 +861,7 @@ static mtr_t::page_flush_ahead log_close(lsn_t lsn) noexcept
 inline size_t mtr_t::prepare_write()
 {
   ut_ad(!recv_no_log_write);
-  if (UNIV_UNLIKELY(m_log_mode != MTR_LOG_ALL))
-  {
-    ut_ad(m_log_mode == MTR_LOG_NO_REDO);
-    ut_ad(m_log.size() == 0);
-    mysql_mutex_lock(&log_sys.mutex);
-    m_commit_lsn= log_sys.get_lsn();
-    return 0;
-  }
+  ut_ad(m_log_mode == MTR_LOG_ALL);
 
   size_t len= m_log.size() + 5;
   ut_ad(len > 5);
