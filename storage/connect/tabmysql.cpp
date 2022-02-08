@@ -301,9 +301,6 @@ bool MYSQLDEF::ParseURL(PGLOBAL g, char *url, bool b)
     if (!Password)
       Password = (b) ? GetStringCatInfo(g, "Password", NULL) : NULL;
     } // endif URL
-    
-    Ignored = !!GetIntCatInfo("Ignored", 0);
-    Delayed = !!GetIntCatInfo("Delayed", 0);
 
 #if 0
   if (!share->port)
@@ -324,6 +321,9 @@ bool MYSQLDEF::DefineAM(PGLOBAL g, LPCSTR am, int)
   char *url;
 
   Desc = "MySQL Table";
+  
+  Delayed = !!GetIntCatInfo("Delayed", 0);
+  Ignored = !!GetIntCatInfo("Ignored", 0);
 
   if (stricmp(am, "MYPRX")) {
     // Normal case of specific MYSQL table
@@ -343,8 +343,6 @@ bool MYSQLDEF::DefineAM(PGLOBAL g, LPCSTR am, int)
       return true;
 
     Bind = !!GetIntCatInfo("Bind", 0);
-    Delayed = !!GetIntCatInfo("Delayed", 0);
-    Ignored = !!GetIntCatInfo("Ignored", 0);
   } else {
     // MYSQL access from a PROXY table 
 		TABLE_SHARE* s;
