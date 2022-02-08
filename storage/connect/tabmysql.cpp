@@ -301,6 +301,9 @@ bool MYSQLDEF::ParseURL(PGLOBAL g, char *url, bool b)
     if (!Password)
       Password = (b) ? GetStringCatInfo(g, "Password", NULL) : NULL;
     } // endif URL
+    
+    Ignored = !!GetIntCatInfo("Ignored", 0);
+    Delayed = !!GetIntCatInfo("Delayed", 0);
 
 #if 0
   if (!share->port)
